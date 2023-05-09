@@ -3,6 +3,17 @@ project(imgui)
 
 set(CMAKE_CXX_STANDARD 17)
 
+if(TRUE) # TODO check if debug cmake build
+    set(TEST_ENGINE_SRC_DIR ${EXTERN_LIBS_FOLDER}/imgui/test_engine/imgui_test_engine)
+
+    file(GLOB_RECURSE
+        TEST_ENGINE_SRC_FILES
+        ${TEST_ENGINE_SRC_DIR}/*.cpp
+    )
+
+    add_compile_definitions(IMGUI_ENABLE_TEST_ENGINE=ON)
+endif()
+
 find_package(PkgConfig REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -29,6 +40,8 @@ add_library(imgui OBJECT
         source/fonts/fontawesome_font.c
         source/fonts/codicons_font.c
         source/fonts/unifont_font.c
+
+        ${TEST_ENGINE_SRC_FILES}
 )
 
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)

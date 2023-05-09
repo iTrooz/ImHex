@@ -32,3 +32,6 @@
 [submodule "lib/external/libwolv"]
 	path = lib/external/libwolv
 	url = https://github.com/WerWolv/libwolv
+[submodule "lib/external/imgui/test_engine"]
+	path = lib/external/imgui/test_engine
+	url = https://github.com/ocornut/imgui_test_engine
