@@ -186,21 +186,17 @@ namespace ImGui {
 
         ImGuiContext &g         = *GImGui;
         const ImGuiStyle &style = g.Style;
-        const ImGuiID id        = window->GetID(label);
         const ImVec2 label_size = CalcTextSize(label, nullptr, true);
 
         ImVec2 pos  = window->DC.CursorPos;
         ImVec2 size = CalcItemSize(size_arg, label_size.x, label_size.y) + ImVec2(g.FontSize + style.FramePadding.x * 2, 0.0f);
 
         const ImRect bb(pos, pos + size);
-        ItemSize(size, 0);
-        if (!ItemAdd(bb, id))
-            return false;
 
         if (g.LastItemData.InFlags & ImGuiItemFlags_ButtonRepeat)
             flags |= ImGuiButtonFlags_Repeat;
-        bool hovered, held;
-        bool pressed = ButtonBehavior(bb, id, &hovered, &held, flags);
+        bool pressed = InvisibleButton(label, size);
+        bool hovered = IsItemHovered();
 
         // Render
         const ImU32 col = hovered ? GetColorU32(ImGuiCol_ButtonHovered) : GetColorU32(ImGuiCol_ButtonActive);
@@ -210,7 +206,6 @@ namespace ImGui {
         GetWindowDrawList()->AddLine(bb.Min + ImVec2(g.FontSize * 0.5 + style.FramePadding.x, size.y), pos + size - ImVec2(g.FontSize * 0.5 + style.FramePadding.x, 0), ImU32(col));
         PopStyleColor();
 
-        IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.LastItemStatusFlags);
         return pressed;
     }
 

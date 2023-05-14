@@ -3,7 +3,7 @@ project(imgui)
 
 set(CMAKE_CXX_STANDARD 17)
 
-if(TRUE) # TODO check if debug cmake build
+if(IMHEX_TEST_MODE)
     set(TEST_ENGINE_SRC_DIR ${EXTERN_LIBS_FOLDER}/imgui/test_engine/imgui_test_engine)
 
     file(GLOB_RECURSE
@@ -12,6 +12,7 @@ if(TRUE) # TODO check if debug cmake build
     )
 
     add_compile_definitions(IMGUI_ENABLE_TEST_ENGINE=ON)
+    add_compile_definitions(IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL=1)
 endif()
 
 find_package(PkgConfig REQUIRED)
@@ -46,6 +47,9 @@ add_library(imgui OBJECT
 
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
 target_compile_options(imgui PRIVATE -Wno-stringop-overflow)
+if(IMHEX_TEST_MODE)
+    target_include_directories(imgui PUBLIC include ${TEST_ENGINE_SRC_DIR})
+endif()
 
 target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="imgui_config.h")
 

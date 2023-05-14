@@ -14,6 +14,42 @@
 #include <wolv/io/fs.hpp>
 #include <wolv/utils/guards.hpp>
 
+#include "imgui.h"
+#include "imgui_te_coroutine.h"
+#include "imgui_te_context.h"
+
+using namespace hex;
+
+void registerTests(ImGuiTestEngine* e){
+    ImGuiTest* test = IM_REGISTER_TEST(e, "demo_test", "test1");
+    test->TestFunc = [](ImGuiTestContext* ctx)
+    {
+        log::warn("Running a test..");
+        ctx->ItemClick("**/test.txt");
+    };
+}
+
+void runTests(ImGuiTestEngine* engine){
+    log::warn("Run tests");
+    ImGuiTestEngine_QueueTests(engine, ImGuiTestGroup_Unknown, "all");
+}
+
+void testStuff(){
+    // register
+    ImGuiTestEngine* engine = ImGuiTestEngine_CreateContext();
+    ImGuiTestEngineIO& test_io = ImGuiTestEngine_GetIO(engine);
+    test_io.ConfigVerboseLevel = ImGuiTestVerboseLevel_Info;
+    test_io.ConfigVerboseLevelOnError = ImGuiTestVerboseLevel_Debug;
+    test_io.ConfigRunSpeed = ImGuiTestRunSpeed_Cinematic; // Default to slowest mode in this demo
+
+    // start
+    ImGuiTestEngine_Start(engine, ImGui::GetCurrentContext());
+    ImGuiTestEngine_InstallDefaultCrashHandler();
+
+    registerTests(engine);
+    runTests(engine);
+}
+
 int main(int argc, char **argv, char **envp) {
     using namespace hex;
     hex::crash::setupCrashHandlers();
@@ -79,6 +115,8 @@ int main(int argc, char **argv, char **envp) {
             if (auto path = hex::getInitialFilePath(); path.has_value()) {
                 EventManager::post<RequestOpenFile>(path.value());
             }
+            
+            testStuff();
 
             // Render the main window
 

@@ -11,6 +11,7 @@ option(IMHEX_IGNORE_BAD_COMPILER "Allow compiling with an unsupported compiler" 
 option(IMHEX_USE_GTK_FILE_PICKER "Use GTK file picker instead of xdg-desktop-portals" OFF)
 option(IMHEX_DISABLE_STACKTRACE "Disables support for printing stack traces" OFF)
 option(IMHEX_DISABLE_UPDATE_CHECK "Disables built-in update check" OFF)
+option(IMHEX_TEST_MODE "Build ImGui test engine, run use-case tests on startup, and exit" OFF)
 
 # Basic compiler and cmake configurations
 set(CMAKE_CXX_STANDARD 23)

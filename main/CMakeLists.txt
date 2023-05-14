@@ -1,5 +1,14 @@
 project(main)
 
+if(IMHEX_TEST_MODE)
+    add_compile_definitions(IMHEX_TEST_MODE=ON)
+    
+    set(TEST_FILES
+        source/tests/tests.cpp
+        source/tests/open_close.cpp
+    )
+endif()
+
 add_executable(main ${APPLICATION_TYPE}
     source/main.cpp
     source/crash_handlers.cpp
@@ -11,6 +20,8 @@ add_executable(main ${APPLICATION_TYPE}
 
     source/init/splash_window.cpp
     source/init/tasks.cpp
+
+    ${TEST_FILES}
 
     ${IMHEX_ICON}
 )
