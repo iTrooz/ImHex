@@ -7,6 +7,7 @@ namespace hex::test {
     ImGuiTestEngine* setupTestEngine(){
         ImGuiTestEngine* engine = ImGuiTestEngine_CreateContext();
         ImGuiTestEngineIO& test_io = ImGuiTestEngine_GetIO(engine);
+        test_io.ConfigLogToTTY = true;
         test_io.ConfigVerboseLevel = ImGuiTestVerboseLevel_Info;
         test_io.ConfigVerboseLevelOnError = ImGuiTestVerboseLevel_Debug;
         test_io.ConfigRunSpeed = ImGuiTestRunSpeed_Cinematic; // Default to slowest mode in this demo
