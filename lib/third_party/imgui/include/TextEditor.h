@@ -173,8 +173,8 @@ class TextEditor {
     return mLanguageDefinition;
   }
 
-  const Palette& GetPalette() const { return mPaletteBase; }
-  void SetPalette(const Palette& aValue);
+  static const Palette& GetPalette() { return sPaletteBase; }
+  static void SetPalette(const Palette& aValue);
 
   void SetErrorMarkers(const ErrorMarkers& aMarkers) {
     mErrorMarkers = aMarkers;
@@ -199,6 +199,9 @@ class TextEditor {
   bool IsReadOnly() const { return mReadOnly; }
   bool IsTextChanged() const { return mTextChanged; }
   bool IsCursorPositionChanged() const { return mCursorPositionChanged; }
+
+  void SetShowCursor(bool aValue) { mShowCursor = aValue; }
+  void SetShowLineNumbers(bool aValue) { mShowLineNumbers = aValue; }
 
   bool IsColorizerEnabled() const { return mColorizerEnabled; }
   void SetColorizerEnable(bool aValue);
@@ -365,7 +368,7 @@ class TextEditor {
   bool mIgnoreImGuiChild;
   bool mShowWhitespaces;
 
-  Palette mPaletteBase;
+  static Palette sPaletteBase;
   Palette mPalette;
   LanguageDefinition mLanguageDefinition;
   RegexList mRegexList;
@@ -379,4 +382,18 @@ class TextEditor {
   uint64_t mStartTime;
 
   float mLastClick;
+  bool mShowCursor;
+  bool mShowLineNumbers;
 };
+
+bool TokenizeCStyleString(const char* in_begin, const char* in_end,
+                          const char*& out_begin, const char*& out_end);
+bool TokenizeCStyleCharacterLiteral(const char* in_begin, const char* in_end,
+                                    const char*& out_begin,
+                                    const char*& out_end);
+bool TokenizeCStyleIdentifier(const char* in_begin, const char* in_end,
+                              const char*& out_begin, const char*& out_end);
+bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
+                          const char*& out_begin, const char*& out_end);
+bool TokenizeCStylePunctuation(const char* in_begin, const char* in_end,
+                               const char*& out_begin, const char*& out_end);

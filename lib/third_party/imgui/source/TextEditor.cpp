@@ -21,6 +21,8 @@ bool equals(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2,
   return first1 == last1 && first2 == last2;
 }
 
+TextEditor::Palette TextEditor::sPaletteBase = TextEditor::GetDarkPalette();
+
 TextEditor::TextEditor()
     : mLineSpacing(1.0f),
       mUndoIndex(0),
@@ -44,31 +46,32 @@ TextEditor::TextEditor()
       mHandleMouseInputs(true),
       mIgnoreImGuiChild(false),
       mShowWhitespaces(true),
+      mShowCursor(true),
+      mShowLineNumbers(true),
       mStartTime(std::chrono::duration_cast<std::chrono::milliseconds>(
                      std::chrono::system_clock::now().time_since_epoch())
                      .count()) {
-  SetPalette(GetDarkPalette());
   SetLanguageDefinition(LanguageDefinition::HLSL());
   mLines.push_back(Line());
 }
 
 TextEditor::~TextEditor() {}
 
-void TextEditor::SetLanguageDefinition(const LanguageDefinition& aLanguageDef) {
+void TextEditor::SetLanguageDefinition(const LanguageDefinition &aLanguageDef) {
   mLanguageDefinition = aLanguageDef;
   mRegexList.clear();
 
-  for (auto& r : mLanguageDefinition.mTokenRegexStrings)
+  for (auto &r : mLanguageDefinition.mTokenRegexStrings)
     mRegexList.push_back(std::make_pair(
         std::regex(r.first, std::regex_constants::optimize), r.second));
 
   Colorize();
 }
 
-void TextEditor::SetPalette(const Palette& aValue) { mPaletteBase = aValue; }
+void TextEditor::SetPalette(const Palette &aValue) { sPaletteBase = aValue; }
 
-std::string TextEditor::GetText(const Coordinates& aStart,
-                                const Coordinates& aEnd) const {
+std::string TextEditor::GetText(const Coordinates &aStart,
+                                const Coordinates &aEnd) const {
   std::string result;
 
   auto lstart = aStart.mLine;
@@ -84,7 +87,7 @@ std::string TextEditor::GetText(const Coordinates& aStart,
   while (istart < iend || lstart < lend) {
     if (lstart >= (int)mLines.size()) break;
 
-    auto& line = mLines[lstart];
+    auto &line = mLines[lstart];
     if (istart < (int)line.size()) {
       result += line[istart].mChar;
       istart++;
@@ -103,7 +106,7 @@ TextEditor::Coordinates TextEditor::GetActualCursorCoordinates() const {
 }
 
 TextEditor::Coordinates TextEditor::SanitizeCoordinates(
-    const Coordinates& aValue) const {
+    const Coordinates &aValue) const {
   auto line = aValue.mLine;
   auto column = aValue.mColumn;
   if (line >= (int)mLines.size()) {
@@ -137,7 +140,7 @@ static int UTF8CharLength(TextEditor::Char c) {
 }
 
 // "Borrowed" from ImGui source
-static inline int ImTextCharToUtf8(char* buf, int buf_size, unsigned int c) {
+static inline int ImTextCharToUtf8(char *buf, int buf_size, unsigned int c) {
   if (c < 0x80) {
     buf[0] = (char)c;
     return 1;
@@ -169,9 +172,9 @@ static inline int ImTextCharToUtf8(char* buf, int buf_size, unsigned int c) {
   }
 }
 
-void TextEditor::Advance(Coordinates& aCoordinates) const {
+void TextEditor::Advance(Coordinates &aCoordinates) const {
   if (aCoordinates.mLine < (int)mLines.size()) {
-    auto& line = mLines[aCoordinates.mLine];
+    auto &line = mLines[aCoordinates.mLine];
     auto cindex = GetCharacterIndex(aCoordinates);
 
     if (cindex + 1 < (int)line.size()) {
@@ -185,8 +188,8 @@ void TextEditor::Advance(Coordinates& aCoordinates) const {
   }
 }
 
-void TextEditor::DeleteRange(const Coordinates& aStart,
-                             const Coordinates& aEnd) {
+void TextEditor::DeleteRange(const Coordinates &aStart,
+                             const Coordinates &aEnd) {
   assert(aEnd >= aStart);
   assert(!mReadOnly);
 
@@ -199,15 +202,15 @@ void TextEditor::DeleteRange(const Coordinates& aStart,
   auto end = GetCharacterIndex(aEnd);
 
   if (aStart.mLine == aEnd.mLine) {
-    auto& line = mLines[aStart.mLine];
+    auto &line = mLines[aStart.mLine];
     auto n = GetLineMaxColumn(aStart.mLine);
     if (aEnd.mColumn >= n)
       line.erase(line.begin() + start, line.end());
     else
       line.erase(line.begin() + start, line.begin() + end);
   } else {
-    auto& firstLine = mLines[aStart.mLine];
-    auto& lastLine = mLines[aEnd.mLine];
+    auto &firstLine = mLines[aStart.mLine];
+    auto &lastLine = mLines[aEnd.mLine];
 
     firstLine.erase(firstLine.begin() + start, firstLine.end());
     lastLine.erase(lastLine.begin(), lastLine.begin() + end);
@@ -221,10 +224,8 @@ void TextEditor::DeleteRange(const Coordinates& aStart,
   mTextChanged = true;
 }
 
-int TextEditor::InsertTextAt(Coordinates& /* inout */ aWhere,
-                             const char* aValue) {
-  assert(!mReadOnly);
-
+int TextEditor::InsertTextAt(Coordinates & /* inout */ aWhere,
+                             const char *aValue) {
   int cindex = GetCharacterIndex(aWhere);
   int totalLines = 0;
   while (*aValue != '\0') {
@@ -235,8 +236,8 @@ int TextEditor::InsertTextAt(Coordinates& /* inout */ aWhere,
       ++aValue;
     } else if (*aValue == '\n') {
       if (cindex < (int)mLines[aWhere.mLine].size()) {
-        auto& newLine = InsertLine(aWhere.mLine + 1);
-        auto& line = mLines[aWhere.mLine];
+        auto &newLine = InsertLine(aWhere.mLine + 1);
+        auto &line = mLines[aWhere.mLine];
         newLine.insert(newLine.begin(), line.begin() + cindex, line.end());
         line.erase(line.begin() + cindex, line.end());
       } else {
@@ -248,7 +249,7 @@ int TextEditor::InsertTextAt(Coordinates& /* inout */ aWhere,
       ++totalLines;
       ++aValue;
     } else {
-      auto& line = mLines[aWhere.mLine];
+      auto &line = mLines[aWhere.mLine];
       auto d = UTF8CharLength(*aValue);
       while (d-- > 0 && *aValue != '\0')
         line.insert(line.begin() + cindex++,
@@ -262,10 +263,11 @@ int TextEditor::InsertTextAt(Coordinates& /* inout */ aWhere,
   return totalLines;
 }
 
-void TextEditor::AddUndo(UndoRecord& aValue) {
+void TextEditor::AddUndo(UndoRecord &aValue) {
   assert(!mReadOnly);
   // printf("AddUndo: (@%d.%d) +\'%s' [%d.%d .. %d.%d], -\'%s', [%d.%d .. %d.%d]
-  // (@%d.%d)\n", 	aValue.mBefore.mCursorPosition.mLine,
+  // (@%d.%d)\n",
+  //	aValue.mBefore.mCursorPosition.mLine,
   //aValue.mBefore.mCursorPosition.mColumn, 	aValue.mAdded.c_str(),
   //aValue.mAddedStart.mLine, aValue.mAddedStart.mColumn,
   //aValue.mAddedEnd.mLine, aValue.mAddedEnd.mColumn, 	aValue.mRemoved.c_str(),
@@ -281,7 +283,7 @@ void TextEditor::AddUndo(UndoRecord& aValue) {
 }
 
 TextEditor::Coordinates TextEditor::ScreenPosToCoordinates(
-    const ImVec2& aPosition) const {
+    const ImVec2 &aPosition) const {
   ImVec2 origin = ImGui::GetCursorScreenPos();
   ImVec2 local(aPosition.x - origin.x, aPosition.y - origin.y);
 
@@ -290,7 +292,7 @@ TextEditor::Coordinates TextEditor::ScreenPosToCoordinates(
   int columnCoord = 0;
 
   if (lineNo >= 0 && lineNo < (int)mLines.size()) {
-    auto& line = mLines.at(lineNo);
+    auto &line = mLines.at(lineNo);
 
     int columnIndex = 0;
     float columnX = 0.0f;
@@ -333,18 +335,18 @@ TextEditor::Coordinates TextEditor::ScreenPosToCoordinates(
 }
 
 TextEditor::Coordinates TextEditor::FindWordStart(
-    const Coordinates& aFrom) const {
+    const Coordinates &aFrom) const {
   Coordinates at = aFrom;
   if (at.mLine >= (int)mLines.size()) return at;
 
-  auto& line = mLines[at.mLine];
+  auto &line = mLines[at.mLine];
   auto cindex = GetCharacterIndex(at);
 
   if (cindex >= (int)line.size()) return at;
 
   while (cindex > 0 && isspace(line[cindex].mChar)) --cindex;
 
-  auto cstart = (PaletteIndex)line[cindex].mColorIndex;
+  auto cstart = line[cindex].mChar;
   while (cindex > 0) {
     auto c = line[cindex].mChar;
     if ((c & 0xC0) != 0x80)  // not UTF code sequence 10xxxxxx
@@ -353,7 +355,15 @@ TextEditor::Coordinates TextEditor::FindWordStart(
         cindex++;
         break;
       }
-      if (cstart != (PaletteIndex)line[size_t(cindex - 1)].mColorIndex) break;
+
+      if (isalnum(cstart) || cstart == '_') {
+        if (!isalnum(c) && c != '_') {
+          cindex++;
+          break;
+        }
+      } else {
+        break;
+      }
     }
     --cindex;
   }
@@ -361,11 +371,11 @@ TextEditor::Coordinates TextEditor::FindWordStart(
 }
 
 TextEditor::Coordinates TextEditor::FindWordEnd(
-    const Coordinates& aFrom) const {
+    const Coordinates &aFrom) const {
   Coordinates at = aFrom;
   if (at.mLine >= (int)mLines.size()) return at;
 
-  auto& line = mLines[at.mLine];
+  auto &line = mLines[at.mLine];
   auto cindex = GetCharacterIndex(at);
 
   if (cindex >= (int)line.size()) return at;
@@ -389,7 +399,7 @@ TextEditor::Coordinates TextEditor::FindWordEnd(
 }
 
 TextEditor::Coordinates TextEditor::FindNextWord(
-    const Coordinates& aFrom) const {
+    const Coordinates &aFrom) const {
   Coordinates at = aFrom;
   if (at.mLine >= (int)mLines.size()) return at;
 
@@ -398,7 +408,7 @@ TextEditor::Coordinates TextEditor::FindNextWord(
   bool isword = false;
   bool skip = false;
   if (cindex < (int)mLines[at.mLine].size()) {
-    auto& line = mLines[at.mLine];
+    auto &line = mLines[at.mLine];
     isword = isalnum(line[cindex].mChar);
     skip = isword;
   }
@@ -409,7 +419,7 @@ TextEditor::Coordinates TextEditor::FindNextWord(
       return Coordinates(l, GetLineMaxColumn(l));
     }
 
-    auto& line = mLines[at.mLine];
+    auto &line = mLines[at.mLine];
     if (cindex < (int)line.size()) {
       isword = isalnum(line[cindex].mChar);
 
@@ -430,9 +440,9 @@ TextEditor::Coordinates TextEditor::FindNextWord(
   return at;
 }
 
-int TextEditor::GetCharacterIndex(const Coordinates& aCoordinates) const {
+int TextEditor::GetCharacterIndex(const Coordinates &aCoordinates) const {
   if (aCoordinates.mLine >= mLines.size()) return -1;
-  auto& line = mLines[aCoordinates.mLine];
+  auto &line = mLines[aCoordinates.mLine];
   int c = 0;
   int i = 0;
   for (; i < line.size() && c < aCoordinates.mColumn;) {
@@ -447,7 +457,7 @@ int TextEditor::GetCharacterIndex(const Coordinates& aCoordinates) const {
 
 int TextEditor::GetCharacterColumn(int aLine, int aIndex) const {
   if (aLine >= mLines.size()) return 0;
-  auto& line = mLines[aLine];
+  auto &line = mLines[aLine];
   int col = 0;
   int i = 0;
   while (i < aIndex && i < (int)line.size()) {
@@ -463,7 +473,7 @@ int TextEditor::GetCharacterColumn(int aLine, int aIndex) const {
 
 int TextEditor::GetLineCharacterCount(int aLine) const {
   if (aLine >= mLines.size()) return 0;
-  auto& line = mLines[aLine];
+  auto &line = mLines[aLine];
   int c = 0;
   for (unsigned i = 0; i < line.size(); c++) i += UTF8CharLength(line[i].mChar);
   return c;
@@ -471,7 +481,7 @@ int TextEditor::GetLineCharacterCount(int aLine) const {
 
 int TextEditor::GetLineMaxColumn(int aLine) const {
   if (aLine >= mLines.size()) return 0;
-  auto& line = mLines[aLine];
+  auto &line = mLines[aLine];
   int col = 0;
   for (unsigned i = 0; i < line.size();) {
     auto c = line[i].mChar;
@@ -484,10 +494,10 @@ int TextEditor::GetLineMaxColumn(int aLine) const {
   return col;
 }
 
-bool TextEditor::IsOnWordBoundary(const Coordinates& aAt) const {
+bool TextEditor::IsOnWordBoundary(const Coordinates &aAt) const {
   if (aAt.mLine >= (int)mLines.size() || aAt.mColumn == 0) return true;
 
-  auto& line = mLines[aAt.mLine];
+  auto &line = mLines[aAt.mLine];
   auto cindex = GetCharacterIndex(aAt);
   if (cindex >= (int)line.size()) return true;
 
@@ -503,7 +513,7 @@ void TextEditor::RemoveLine(int aStart, int aEnd) {
   assert(mLines.size() > (size_t)(aEnd - aStart));
 
   ErrorMarkers etmp;
-  for (auto& i : mErrorMarkers) {
+  for (auto &i : mErrorMarkers) {
     ErrorMarkers::value_type e(i.first >= aStart ? i.first - 1 : i.first,
                                i.second);
     if (e.first >= aStart && e.first <= aEnd) continue;
@@ -529,7 +539,7 @@ void TextEditor::RemoveLine(int aIndex) {
   assert(mLines.size() > 1);
 
   ErrorMarkers etmp;
-  for (auto& i : mErrorMarkers) {
+  for (auto &i : mErrorMarkers) {
     ErrorMarkers::value_type e(i.first > aIndex ? i.first - 1 : i.first,
                                i.second);
     if (e.first - 1 == aIndex) continue;
@@ -550,13 +560,11 @@ void TextEditor::RemoveLine(int aIndex) {
   mTextChanged = true;
 }
 
-TextEditor::Line& TextEditor::InsertLine(int aIndex) {
-  assert(!mReadOnly);
-
-  auto& result = *mLines.insert(mLines.begin() + aIndex, Line());
+TextEditor::Line &TextEditor::InsertLine(int aIndex) {
+  auto &result = *mLines.insert(mLines.begin() + aIndex, Line());
 
   ErrorMarkers etmp;
-  for (auto& i : mErrorMarkers)
+  for (auto &i : mErrorMarkers)
     etmp.insert(ErrorMarkers::value_type(
         i.first >= aIndex ? i.first + 1 : i.first, i.second));
   mErrorMarkers = std::move(etmp);
@@ -573,7 +581,7 @@ std::string TextEditor::GetWordUnderCursor() const {
   return GetWordAt(c);
 }
 
-std::string TextEditor::GetWordAt(const Coordinates& aCoords) const {
+std::string TextEditor::GetWordAt(const Coordinates &aCoords) const {
   auto start = FindWordStart(aCoords);
   auto end = FindWordEnd(aCoords);
 
@@ -588,7 +596,7 @@ std::string TextEditor::GetWordAt(const Coordinates& aCoords) const {
   return r;
 }
 
-ImU32 TextEditor::GetGlyphColor(const Glyph& aGlyph) const {
+ImU32 TextEditor::GetGlyphColor(const Glyph &aGlyph) const {
   if (!mColorizerEnabled) return mPalette[(int)PaletteIndex::Default];
   if (aGlyph.mComment) return mPalette[(int)PaletteIndex::Comment];
   if (aGlyph.mMultiLineComment)
@@ -606,7 +614,7 @@ ImU32 TextEditor::GetGlyphColor(const Glyph& aGlyph) const {
 }
 
 void TextEditor::HandleKeyboardInputs() {
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   auto shift = io.KeyShift;
   auto ctrl = io.ConfigMacOSXBehaviors ? io.KeySuper : io.KeyCtrl;
   auto alt = io.ConfigMacOSXBehaviors ? io.KeyCtrl : io.KeyAlt;
@@ -659,12 +667,26 @@ void TextEditor::HandleKeyboardInputs() {
     else if (!IsReadOnly() && !ctrl && !shift && !alt &&
              ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Delete)))
       Delete();
-    else if (!IsReadOnly() && !ctrl && !shift && !alt &&
-             ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Backspace)))
+    else if (!IsReadOnly() && ctrl && !shift && !alt &&
+             ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Delete))) {
+      auto wordStart = GetCursorPosition();
+      MoveRight();
+      auto wordEnd = FindWordEnd(GetCursorPosition());
+      SetSelection(wordStart, wordEnd);
       Backspace();
-    else if (!ctrl && !shift && !alt &&
-             ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Insert)))
-      mOverwrite ^= true;
+    } else if (!IsReadOnly() && !ctrl && !alt &&
+               ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Backspace)))
+      Backspace();
+    else if (!IsReadOnly() && ctrl && !shift && !alt &&
+             ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Backspace))) {
+      auto wordEnd = GetCursorPosition();
+      MoveLeft();
+      auto wordStart = FindWordStart(GetCursorPosition());
+      SetSelection(wordStart, wordEnd);
+      Backspace();
+    } else if (!ctrl && !shift && !alt &&
+               ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Insert)))
+      mOverwrite = !mOverwrite;
     else if (ctrl && !shift && !alt &&
              ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Insert)))
       Copy();
@@ -687,7 +709,8 @@ void TextEditor::HandleKeyboardInputs() {
              ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
       SelectAll();
     else if (!IsReadOnly() && !ctrl && !shift && !alt &&
-             ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)))
+             (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)) ||
+              ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_KeypadEnter))))
       EnterCharacter('\n', false);
     else if (!IsReadOnly() && !ctrl && !alt &&
              ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Tab)))
@@ -696,7 +719,9 @@ void TextEditor::HandleKeyboardInputs() {
     if (!IsReadOnly() && !io.InputQueueCharacters.empty()) {
       for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
         auto c = io.InputQueueCharacters[i];
-        if (c != 0 && (c == '\n' || c >= 32)) EnterCharacter(c, shift);
+        if (c != 0 && (c == '\n' || c >= 32)) {
+          EnterCharacter(c, shift);
+        }
       }
       io.InputQueueCharacters.resize(0);
     }
@@ -704,7 +729,7 @@ void TextEditor::HandleKeyboardInputs() {
 }
 
 void TextEditor::HandleMouseInputs() {
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   auto shift = io.KeyShift;
   auto ctrl = io.ConfigMacOSXBehaviors ? io.KeySuper : io.KeyCtrl;
   auto alt = io.ConfigMacOSXBehaviors ? io.KeyCtrl : io.KeyAlt;
@@ -787,7 +812,7 @@ void TextEditor::Render() {
 
   /* Update palette with the current alpha from style */
   for (int i = 0; i < (int)PaletteIndex::Max; ++i) {
-    auto color = ImGui::ColorConvertU32ToFloat4(mPaletteBase[i]);
+    auto color = ImGui::ColorConvertU32ToFloat4(sPaletteBase[i]);
     color.w *= ImGui::GetStyle().Alpha;
     mPalette[i] = ImGui::ColorConvertFloat4ToU32(color);
   }
@@ -817,7 +842,11 @@ void TextEditor::Render() {
   // Deduce mTextStart by evaluating mLines size (global lineMax) plus two
   // spaces as text width
   char buf[16];
-  snprintf(buf, 16, " %d ", globalLineMax);
+
+  if (mShowLineNumbers)
+    snprintf(buf, 16, " %d ", globalLineMax);
+  else
+    buf[0] = '\0';
   mTextStart = ImGui::GetFont()
                    ->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, -1.0f, buf,
                                    nullptr, nullptr)
@@ -836,7 +865,7 @@ void TextEditor::Render() {
       ImVec2 textScreenPos =
           ImVec2(lineStartScreenPos.x + mTextStart, lineStartScreenPos.y);
 
-      auto& line = mLines[lineNo];
+      auto &line = mLines[lineNo];
       longest = std::max(mTextStart + TextDistanceToLineStart(Coordinates(
                                           lineNo, GetLineMaxColumn(lineNo))),
                          longest);
@@ -869,15 +898,7 @@ void TextEditor::Render() {
                                 mPalette[(int)PaletteIndex::Selection]);
       }
 
-      // Draw breakpoints
       auto start = ImVec2(lineStartScreenPos.x + scrollX, lineStartScreenPos.y);
-
-      if (mBreakpoints.count(lineNo + 1) != 0) {
-        auto end = ImVec2(lineStartScreenPos.x + contentSize.x + 2.0f * scrollX,
-                          lineStartScreenPos.y + mCharAdvance.y);
-        drawList->AddRectFilled(start, end,
-                                mPalette[(int)PaletteIndex::Breakpoint]);
-      }
 
       // Draw error markers
       auto errorIt = mErrorMarkers.find(lineNo + 1);
@@ -893,7 +914,7 @@ void TextEditor::Render() {
           ImGui::Text("Error at line %d:", errorIt->first);
           ImGui::PopStyleColor();
           ImGui::Separator();
-          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.2f, 1.0f));
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.2f, 1.0f));
           ImGui::Text("%s", errorIt->second.c_str());
           ImGui::PopStyleColor();
           ImGui::EndTooltip();
@@ -911,7 +932,22 @@ void TextEditor::Render() {
                                lineStartScreenPos.y),
                         mPalette[(int)PaletteIndex::LineNumber], buf);
 
-      if (mState.mCursorPosition.mLine == lineNo) {
+      // Draw breakpoints
+      if (mBreakpoints.count(lineNo + 1) != 0) {
+        auto end = ImVec2(lineStartScreenPos.x + contentSize.x + 2.0f * scrollX,
+                          lineStartScreenPos.y + mCharAdvance.y);
+        drawList->AddRectFilled(start + ImVec2(mTextStart, 0), end,
+                                mPalette[(int)PaletteIndex::Breakpoint]);
+
+        drawList->AddCircleFilled(start + ImVec2(0, mCharAdvance.y) / 2,
+                                  mCharAdvance.y / 3,
+                                  mPalette[(int)PaletteIndex::Breakpoint]);
+        drawList->AddCircle(start + ImVec2(0, mCharAdvance.y) / 2,
+                            mCharAdvance.y / 3,
+                            mPalette[(int)PaletteIndex::Default]);
+      }
+
+      if (mState.mCursorPosition.mLine == lineNo && mShowCursor) {
         auto focused = ImGui::IsWindowFocused();
 
         // Highlight the current line (where the cursor is)
@@ -971,7 +1007,7 @@ void TextEditor::Render() {
       ImVec2 bufferOffset;
 
       for (int i = 0; i < line.size();) {
-        auto& glyph = line[i];
+        auto &glyph = line[i];
         auto color = GetGlyphColor(glyph);
 
         if ((color != prevColor || glyph.mChar == '\t' || glyph.mChar == ' ') &&
@@ -1038,13 +1074,15 @@ void TextEditor::Render() {
       auto id = GetWordAt(ScreenPosToCoordinates(ImGui::GetMousePos()));
       if (!id.empty()) {
         auto it = mLanguageDefinition.mIdentifiers.find(id);
-        if (it != mLanguageDefinition.mIdentifiers.end()) {
+        if (it != mLanguageDefinition.mIdentifiers.end() &&
+            !it->second.mDeclaration.empty()) {
           ImGui::BeginTooltip();
           ImGui::TextUnformatted(it->second.mDeclaration.c_str());
           ImGui::EndTooltip();
         } else {
           auto pi = mLanguageDefinition.mPreprocIdentifiers.find(id);
-          if (pi != mLanguageDefinition.mPreprocIdentifiers.end()) {
+          if (pi != mLanguageDefinition.mPreprocIdentifiers.end() &&
+              !pi->second.mDeclaration.empty()) {
             ImGui::BeginTooltip();
             ImGui::TextUnformatted(pi->second.mDeclaration.c_str());
             ImGui::EndTooltip();
@@ -1058,12 +1096,11 @@ void TextEditor::Render() {
 
   if (mScrollToCursor) {
     EnsureCursorVisible();
-    ImGui::SetWindowFocus();
     mScrollToCursor = false;
   }
 }
 
-void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder) {
+void TextEditor::Render(const char *aTitle, const ImVec2 &aSize, bool aBorder) {
   mWithinRender = true;
   mTextChanged = false;
   mCursorPositionChanged = false;
@@ -1073,14 +1110,13 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder) {
       ImGui::ColorConvertU32ToFloat4(mPalette[(int)PaletteIndex::Background]));
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
   if (!mIgnoreImGuiChild)
-    ImGui::BeginChild(aTitle, aSize, aBorder,
-                      ImGuiWindowFlags_HorizontalScrollbar |
-                          ImGuiWindowFlags_AlwaysHorizontalScrollbar |
-                          ImGuiWindowFlags_NoMove);
+    ImGui::BeginChild(
+        aTitle, aSize, aBorder,
+        ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
 
   if (mHandleKeyboardInputs) {
     HandleKeyboardInputs();
-    ImGui::PushAllowKeyboardFocus(true);
+    ImGui::PushTabStop(true);
   }
 
   if (mHandleMouseInputs) HandleMouseInputs();
@@ -1088,7 +1124,7 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder) {
   ColorizeInternal();
   Render();
 
-  if (mHandleKeyboardInputs) ImGui::PopAllowKeyboardFocus();
+  if (mHandleKeyboardInputs) ImGui::PopTabStop();
 
   if (!mIgnoreImGuiChild) ImGui::EndChild();
 
@@ -1098,7 +1134,7 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder) {
   mWithinRender = false;
 }
 
-void TextEditor::SetText(const std::string& aText) {
+void TextEditor::SetText(const std::string &aText) {
   mLines.clear();
   mLines.emplace_back(Line());
   for (auto chr : aText) {
@@ -1120,7 +1156,7 @@ void TextEditor::SetText(const std::string& aText) {
   Colorize();
 }
 
-void TextEditor::SetTextLines(const std::vector<std::string>& aLines) {
+void TextEditor::SetTextLines(const std::vector<std::string> &aLines) {
   mLines.clear();
 
   if (aLines.empty()) {
@@ -1129,7 +1165,7 @@ void TextEditor::SetTextLines(const std::vector<std::string>& aLines) {
     mLines.resize(aLines.size());
 
     for (size_t i = 0; i < aLines.size(); ++i) {
-      const std::string& aLine = aLines[i];
+      const std::string &aLine = aLines[i];
 
       mLines[i].reserve(aLine.size());
       for (size_t j = 0; j < aLine.size(); ++j)
@@ -1179,7 +1215,7 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift) {
       bool modified = false;
 
       for (int i = start.mLine; i <= end.mLine; i++) {
-        auto& line = mLines[i];
+        auto &line = mLines[i];
         if (aShift) {
           if (!line.empty()) {
             if (line.front().mChar == '\t') {
@@ -1195,8 +1231,8 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift) {
             }
           }
         } else {
-          line.insert(line.begin(),
-                      Glyph('\t', TextEditor::PaletteIndex::Background));
+          for (int j = start.mColumn % mTabSize; j < mTabSize; j++)
+            line.insert(line.begin(), Glyph(' ', PaletteIndex::Background));
           modified = true;
         }
       }
@@ -1245,8 +1281,8 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift) {
 
   if (aChar == '\n') {
     InsertLine(coord.mLine + 1);
-    auto& line = mLines[coord.mLine];
-    auto& newLine = mLines[coord.mLine + 1];
+    auto &line = mLines[coord.mLine];
+    auto &newLine = mLines[coord.mLine + 1];
 
     if (mLanguageDefinition.mAutoIndentation)
       for (size_t it = 0; it < line.size() && isascii(line[it].mChar) &&
@@ -1262,12 +1298,39 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift) {
         Coordinates(coord.mLine + 1,
                     GetCharacterColumn(coord.mLine + 1, (int)whitespaceSize)));
     u.mAdded = (char)aChar;
+  } else if (aChar == '\t') {
+    auto &line = mLines[coord.mLine];
+    auto cindex = GetCharacterIndex(coord);
+
+    if (!aShift) {
+      auto spacesToInsert = mTabSize - (cindex % mTabSize);
+      for (int j = 0; j < spacesToInsert; j++)
+        line.insert(line.begin() + cindex,
+                    Glyph(' ', PaletteIndex::Background));
+      SetCursorPosition(Coordinates(
+          coord.mLine,
+          GetCharacterColumn(coord.mLine, cindex + spacesToInsert)));
+    } else {
+      auto spacesToRemove = (cindex % mTabSize);
+      if (spacesToRemove == 0) spacesToRemove = 4;
+
+      for (int j = 0; j < spacesToRemove; j++) {
+        if ((line.begin() + cindex - 1)->mChar == ' ') {
+          line.erase(line.begin() + cindex - 1);
+          cindex -= 1;
+        }
+      }
+
+      SetCursorPosition(Coordinates(
+          coord.mLine, GetCharacterColumn(coord.mLine, std::max(0, cindex))));
+    }
+
   } else {
     char buf[7];
     int e = ImTextCharToUtf8(buf, 7, aChar);
     if (e > 0) {
       buf[e] = '\0';
-      auto& line = mLines[coord.mLine];
+      auto &line = mLines[coord.mLine];
       auto cindex = GetCharacterIndex(coord);
 
       if (mOverwrite && cindex < (int)line.size()) {
@@ -1308,7 +1371,7 @@ void TextEditor::SetReadOnly(bool aValue) { mReadOnly = aValue; }
 
 void TextEditor::SetColorizerEnable(bool aValue) { mColorizerEnabled = aValue; }
 
-void TextEditor::SetCursorPosition(const Coordinates& aPosition) {
+void TextEditor::SetCursorPosition(const Coordinates &aPosition) {
   if (mState.mCursorPosition != aPosition) {
     mState.mCursorPosition = aPosition;
     mCursorPositionChanged = true;
@@ -1316,20 +1379,20 @@ void TextEditor::SetCursorPosition(const Coordinates& aPosition) {
   }
 }
 
-void TextEditor::SetSelectionStart(const Coordinates& aPosition) {
+void TextEditor::SetSelectionStart(const Coordinates &aPosition) {
   mState.mSelectionStart = SanitizeCoordinates(aPosition);
   if (mState.mSelectionStart > mState.mSelectionEnd)
     std::swap(mState.mSelectionStart, mState.mSelectionEnd);
 }
 
-void TextEditor::SetSelectionEnd(const Coordinates& aPosition) {
+void TextEditor::SetSelectionEnd(const Coordinates &aPosition) {
   mState.mSelectionEnd = SanitizeCoordinates(aPosition);
   if (mState.mSelectionStart > mState.mSelectionEnd)
     std::swap(mState.mSelectionStart, mState.mSelectionEnd);
 }
 
-void TextEditor::SetSelection(const Coordinates& aStart,
-                              const Coordinates& aEnd, SelectionMode aMode) {
+void TextEditor::SetSelection(const Coordinates &aStart,
+                              const Coordinates &aEnd, SelectionMode aMode) {
   auto oldSelStart = mState.mSelectionStart;
   auto oldSelEnd = mState.mSelectionEnd;
 
@@ -1368,11 +1431,11 @@ void TextEditor::SetTabSize(int aValue) {
   mTabSize = std::max(0, std::min(32, aValue));
 }
 
-void TextEditor::InsertText(const std::string& aValue) {
+void TextEditor::InsertText(const std::string &aValue) {
   InsertText(aValue.c_str());
 }
 
-void TextEditor::InsertText(const char* aValue) {
+void TextEditor::InsertText(const char *aValue) {
   if (aValue == nullptr) return;
 
   auto pos = GetActualCursorCoordinates();
@@ -1511,7 +1574,7 @@ void TextEditor::MoveRight(int aAmount, bool aSelect, bool aWordMode) {
   auto cindex = GetCharacterIndex(mState.mCursorPosition);
   while (aAmount-- > 0) {
     auto lindex = mState.mCursorPosition.mLine;
-    auto& line = mLines[lindex];
+    auto &line = mLines[lindex];
 
     if (cindex >= line.size()) {
       if (mState.mCursorPosition.mLine < mLines.size() - 1) {
@@ -1632,7 +1695,7 @@ void TextEditor::Delete() {
   } else {
     auto pos = GetActualCursorCoordinates();
     SetCursorPosition(pos);
-    auto& line = mLines[pos.mLine];
+    auto &line = mLines[pos.mLine];
 
     if (pos.mColumn == GetLineMaxColumn(pos.mLine)) {
       if (pos.mLine == (int)mLines.size() - 1) return;
@@ -1641,7 +1704,7 @@ void TextEditor::Delete() {
       u.mRemovedStart = u.mRemovedEnd = GetActualCursorCoordinates();
       Advance(u.mRemovedEnd);
 
-      auto& nextLine = mLines[pos.mLine + 1];
+      auto &nextLine = mLines[pos.mLine + 1];
       line.insert(line.end(), nextLine.begin(), nextLine.end());
       RemoveLine(pos.mLine + 1);
     } else {
@@ -1690,13 +1753,13 @@ void TextEditor::Backspace() {
           Coordinates(pos.mLine - 1, GetLineMaxColumn(pos.mLine - 1));
       Advance(u.mRemovedEnd);
 
-      auto& line = mLines[mState.mCursorPosition.mLine];
-      auto& prevLine = mLines[mState.mCursorPosition.mLine - 1];
+      auto &line = mLines[mState.mCursorPosition.mLine];
+      auto &prevLine = mLines[mState.mCursorPosition.mLine - 1];
       auto prevSize = GetLineMaxColumn(mState.mCursorPosition.mLine - 1);
       prevLine.insert(prevLine.end(), line.begin(), line.end());
 
       ErrorMarkers etmp;
-      for (auto& i : mErrorMarkers)
+      for (auto &i : mErrorMarkers)
         etmp.insert(ErrorMarkers::value_type(
             i.first - 1 == mState.mCursorPosition.mLine ? i.first - 1 : i.first,
             i.second));
@@ -1706,7 +1769,7 @@ void TextEditor::Backspace() {
       --mState.mCursorPosition.mLine;
       mState.mCursorPosition.mColumn = prevSize;
     } else {
-      auto& line = mLines[mState.mCursorPosition.mLine];
+      auto &line = mLines[mState.mCursorPosition.mLine];
       auto cindex = GetCharacterIndex(pos) - 1;
       auto cend = cindex + 1;
       while (cindex > 0 && IsUTFSequence(line[cindex].mChar)) --cindex;
@@ -1716,7 +1779,8 @@ void TextEditor::Backspace() {
 
       u.mRemovedStart = u.mRemovedEnd = GetActualCursorCoordinates();
       --u.mRemovedStart.mColumn;
-      --mState.mCursorPosition.mColumn;
+      mState.mCursorPosition.mColumn =
+          GetCharacterColumn(mState.mCursorPosition.mLine, cindex);
 
       while (cindex < line.size() && cend-- > cindex) {
         u.mRemoved += line[cindex].mChar;
@@ -1753,8 +1817,8 @@ void TextEditor::Copy() {
   } else {
     if (!mLines.empty()) {
       std::string str;
-      auto& line = mLines[GetActualCursorCoordinates().mLine];
-      for (auto& g : line) str.push_back(g.mChar);
+      auto &line = mLines[GetActualCursorCoordinates().mLine];
+      for (auto &g : line) str.push_back(g.mChar);
       ImGui::SetClipboardText(str.c_str());
     }
   }
@@ -1820,7 +1884,7 @@ void TextEditor::Redo(int aSteps) {
   while (CanRedo() && aSteps-- > 0) mUndoBuffer[mUndoIndex++].Redo(this);
 }
 
-const TextEditor::Palette& TextEditor::GetDarkPalette() {
+const TextEditor::Palette &TextEditor::GetDarkPalette() {
   const static Palette p = {{
       0xff7f7f7f,  // Default
       0xffd69c56,  // Keyword
@@ -1847,7 +1911,7 @@ const TextEditor::Palette& TextEditor::GetDarkPalette() {
   return p;
 }
 
-const TextEditor::Palette& TextEditor::GetLightPalette() {
+const TextEditor::Palette &TextEditor::GetLightPalette() {
   const static Palette p = {{
       0xff7f7f7f,  // None
       0xffff0c06,  // Keyword
@@ -1874,7 +1938,7 @@ const TextEditor::Palette& TextEditor::GetLightPalette() {
   return p;
 }
 
-const TextEditor::Palette& TextEditor::GetRetroBluePalette() {
+const TextEditor::Palette &TextEditor::GetRetroBluePalette() {
   const static Palette p = {{
       0xff00ffff,  // None
       0xffffff00,  // Keyword
@@ -1910,7 +1974,7 @@ std::vector<std::string> TextEditor::GetTextLines() const {
 
   result.reserve(mLines.size());
 
-  for (auto& line : mLines) {
+  for (auto &line : mLines) {
     std::string text;
 
     text.resize(line.size());
@@ -1954,25 +2018,25 @@ void TextEditor::ColorizeRange(int aFromLine, int aToLine) {
 
   int endLine = std::max(0, std::min((int)mLines.size(), aToLine));
   for (int i = aFromLine; i < endLine; ++i) {
-    auto& line = mLines[i];
+    auto &line = mLines[i];
 
     if (line.empty()) continue;
 
     buffer.resize(line.size());
     for (size_t j = 0; j < line.size(); ++j) {
-      auto& col = line[j];
+      auto &col = line[j];
       buffer[j] = col.mChar;
       col.mColorIndex = PaletteIndex::Default;
     }
 
-    const char* bufferBegin = &buffer.front();
-    const char* bufferEnd = bufferBegin + buffer.size();
+    const char *bufferBegin = &buffer.front();
+    const char *bufferEnd = bufferBegin + buffer.size();
 
     auto last = bufferEnd;
 
     for (auto first = bufferBegin; first != last;) {
-      const char* token_begin = nullptr;
-      const char* token_end = nullptr;
+      const char *token_begin = nullptr;
+      const char *token_end = nullptr;
       PaletteIndex token_color = PaletteIndex::Default;
 
       bool hasTokenizeResult = false;
@@ -1988,12 +2052,12 @@ void TextEditor::ColorizeRange(int aFromLine, int aToLine) {
         // printf("using regex for %.*s\n", first + 10 < last ? 10 : int(last -
         // first), first);
 
-        for (auto& p : mRegexList) {
+        for (auto &p : mRegexList) {
           if (std::regex_search(first, last, results, p.first,
                                 std::regex_constants::match_continuous)) {
             hasTokenizeResult = true;
 
-            auto& v = *results.begin();
+            auto &v = *results.begin();
             token_begin = v.first;
             token_end = v.second;
             token_color = p.second;
@@ -2054,7 +2118,7 @@ void TextEditor::ColorizeInternal() {
     auto currentLine = 0;
     auto currentIndex = 0;
     while (currentLine < endLine || currentIndex < endIndex) {
-      auto& line = mLines[currentLine];
+      auto &line = mLines[currentLine];
 
       if (currentIndex == 0 && !concatenate) {
         withinSingleLineComment = false;
@@ -2065,7 +2129,7 @@ void TextEditor::ColorizeInternal() {
       concatenate = false;
 
       if (!line.empty()) {
-        auto& g = line[currentIndex];
+        auto &g = line[currentIndex];
         auto c = g.mChar;
 
         if (c != mLanguageDefinition.mPreprocChar && !isspace(c))
@@ -2103,19 +2167,19 @@ void TextEditor::ColorizeInternal() {
             withinString = true;
             line[currentIndex].mMultiLineComment = inComment;
           } else {
-            auto pred = [](const char& a, const Glyph& b) {
+            auto pred = [](const char &a, const Glyph &b) {
               return a == b.mChar;
             };
             auto from = line.begin() + currentIndex;
-            auto& startStr = mLanguageDefinition.mCommentStart;
-            auto& singleStartStr = mLanguageDefinition.mSingleLineComment;
+            auto &startStr = mLanguageDefinition.mCommentStart;
+            auto &singleStartStr = mLanguageDefinition.mSingleLineComment;
 
-            if (singleStartStr.size() > 0 &&
+            if (!singleStartStr.empty() &&
                 currentIndex + singleStartStr.size() <= line.size() &&
                 equals(singleStartStr.begin(), singleStartStr.end(), from,
                        from + singleStartStr.size(), pred)) {
               withinSingleLineComment = true;
-            } else if (!withinSingleLineComment &&
+            } else if (!startStr.empty() && !withinSingleLineComment &&
                        currentIndex + startStr.size() <= line.size() &&
                        equals(startStr.begin(), startStr.end(), from,
                               from + startStr.size(), pred)) {
@@ -2130,7 +2194,7 @@ void TextEditor::ColorizeInternal() {
             line[currentIndex].mMultiLineComment = inComment;
             line[currentIndex].mComment = withinSingleLineComment;
 
-            auto& endStr = mLanguageDefinition.mCommentEnd;
+            auto &endStr = mLanguageDefinition.mCommentEnd;
             if (currentIndex + 1 >= (int)endStr.size() &&
                 equals(endStr.begin(), endStr.end(), from + 1 - endStr.size(),
                        from + 1, pred)) {
@@ -2139,7 +2203,9 @@ void TextEditor::ColorizeInternal() {
             }
           }
         }
-        line[currentIndex].mPreprocessor = withinPreproc;
+        if (currentIndex < line.size())
+          line[currentIndex].mPreprocessor = withinPreproc;
+
         currentIndex += UTF8CharLength(c);
         if (currentIndex >= (int)line.size()) {
           currentIndex = 0;
@@ -2168,8 +2234,8 @@ void TextEditor::ColorizeInternal() {
   }
 }
 
-float TextEditor::TextDistanceToLineStart(const Coordinates& aFrom) const {
-  auto& line = mLines[aFrom.mLine];
+float TextEditor::TextDistanceToLineStart(const Coordinates &aFrom) const {
+  auto &line = mLines[aFrom.mLine];
   float distance = 0.0f;
   float spaceSize = ImGui::GetFont()
                         ->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, -1.0f,
@@ -2229,7 +2295,8 @@ void TextEditor::EnsureCursorVisible() {
   if (len + mTextStart < left + 4)
     ImGui::SetScrollX(std::max(0.0f, len + mTextStart - 4));
   if (len + mTextStart > right - 4)
-    ImGui::SetScrollX(std::max(0.0f, len + mTextStart + 4 - width));
+    ImGui::SetScrollX(
+        std::max(0.0f, len + mTextStart + 4 - width + mCharAdvance.x * 2));
 }
 
 int TextEditor::GetPageSize() const {
@@ -2237,14 +2304,14 @@ int TextEditor::GetPageSize() const {
   return (int)floor(height / mCharAdvance.y);
 }
 
-TextEditor::UndoRecord::UndoRecord(const std::string& aAdded,
+TextEditor::UndoRecord::UndoRecord(const std::string &aAdded,
                                    const TextEditor::Coordinates aAddedStart,
                                    const TextEditor::Coordinates aAddedEnd,
-                                   const std::string& aRemoved,
+                                   const std::string &aRemoved,
                                    const TextEditor::Coordinates aRemovedStart,
                                    const TextEditor::Coordinates aRemovedEnd,
-                                   TextEditor::EditorState& aBefore,
-                                   TextEditor::EditorState& aAfter)
+                                   TextEditor::EditorState &aBefore,
+                                   TextEditor::EditorState &aAfter)
     : mAdded(aAdded),
       mAddedStart(aAddedStart),
       mAddedEnd(aAddedEnd),
@@ -2257,7 +2324,7 @@ TextEditor::UndoRecord::UndoRecord(const std::string& aAdded,
   assert(mRemovedStart <= mRemovedEnd);
 }
 
-void TextEditor::UndoRecord::Undo(TextEditor* aEditor) {
+void TextEditor::UndoRecord::Undo(TextEditor *aEditor) {
   if (!mAdded.empty()) {
     aEditor->DeleteRange(mAddedStart, mAddedEnd);
     aEditor->Colorize(mAddedStart.mLine - 1,
@@ -2275,7 +2342,7 @@ void TextEditor::UndoRecord::Undo(TextEditor* aEditor) {
   aEditor->EnsureCursorVisible();
 }
 
-void TextEditor::UndoRecord::Redo(TextEditor* aEditor) {
+void TextEditor::UndoRecord::Redo(TextEditor *aEditor) {
   if (!mRemoved.empty()) {
     aEditor->DeleteRange(mRemovedStart, mRemovedEnd);
     aEditor->Colorize(mRemovedStart.mLine - 1,
@@ -2293,9 +2360,9 @@ void TextEditor::UndoRecord::Redo(TextEditor* aEditor) {
   aEditor->EnsureCursorVisible();
 }
 
-static bool TokenizeCStyleString(const char* in_begin, const char* in_end,
-                                 const char*& out_begin, const char*& out_end) {
-  const char* p = in_begin;
+bool TokenizeCStyleString(const char *in_begin, const char *in_end,
+                          const char *&out_begin, const char *&out_end) {
+  const char *p = in_begin;
 
   if (*p == '"') {
     p++;
@@ -2318,11 +2385,10 @@ static bool TokenizeCStyleString(const char* in_begin, const char* in_end,
   return false;
 }
 
-static bool TokenizeCStyleCharacterLiteral(const char* in_begin,
-                                           const char* in_end,
-                                           const char*& out_begin,
-                                           const char*& out_end) {
-  const char* p = in_begin;
+bool TokenizeCStyleCharacterLiteral(const char *in_begin, const char *in_end,
+                                    const char *&out_begin,
+                                    const char *&out_end) {
+  const char *p = in_begin;
 
   if (*p == '\'') {
     p++;
@@ -2343,10 +2409,9 @@ static bool TokenizeCStyleCharacterLiteral(const char* in_begin,
   return false;
 }
 
-static bool TokenizeCStyleIdentifier(const char* in_begin, const char* in_end,
-                                     const char*& out_begin,
-                                     const char*& out_end) {
-  const char* p = in_begin;
+bool TokenizeCStyleIdentifier(const char *in_begin, const char *in_end,
+                              const char *&out_begin, const char *&out_end) {
+  const char *p = in_begin;
 
   if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_') {
     p++;
@@ -2364,9 +2429,9 @@ static bool TokenizeCStyleIdentifier(const char* in_begin, const char* in_end,
   return false;
 }
 
-static bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
-                                 const char*& out_begin, const char*& out_end) {
-  const char* p = in_begin;
+bool TokenizeCStyleNumber(const char *in_begin, const char *in_end,
+                          const char *&out_begin, const char *&out_end) {
+  const char *p = in_begin;
 
   const bool startsWithNumber = *p >= '0' && *p <= '9';
 
@@ -2404,7 +2469,7 @@ static bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
 
       while (p < in_end &&
              ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') ||
-              (*p >= 'A' && *p <= 'F')))
+              (*p >= 'A' && *p <= 'F') || *p == '.' || *p == 'p' || *p == 'P'))
         p++;
     } else if (*p == 'b' || *p == 'B') {
       // binary formatted integer of the type 0b01011101
@@ -2452,9 +2517,8 @@ static bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
   return true;
 }
 
-static bool TokenizeCStylePunctuation(const char* in_begin, const char* in_end,
-                                      const char*& out_begin,
-                                      const char*& out_end) {
+bool TokenizeCStylePunctuation(const char *in_begin, const char *in_end,
+                               const char *&out_begin, const char *&out_end) {
   (void)in_end;
 
   switch (*in_begin) {
@@ -2490,12 +2554,12 @@ static bool TokenizeCStylePunctuation(const char* in_begin, const char* in_end,
   return false;
 }
 
-const TextEditor::LanguageDefinition&
+const TextEditor::LanguageDefinition &
 TextEditor::LanguageDefinition::CPlusPlus() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const cppKeywords[] = {"alignas",
+    static const char *const cppKeywords[] = {"alignas",
                                               "alignof",
                                               "and",
                                               "and_eq",
@@ -2587,9 +2651,9 @@ TextEditor::LanguageDefinition::CPlusPlus() {
                                               "while",
                                               "xor",
                                               "xor_eq"};
-    for (auto& k : cppKeywords) langDef.mKeywords.insert(k);
+    for (auto &k : cppKeywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {
+    static const char *const identifiers[] = {
         "abort",   "abs",           "acos",    "asin",          "atan",
         "atexit",  "atof",          "atoi",    "atol",          "ceil",
         "clock",   "cosh",          "ctime",   "div",           "exit",
@@ -2603,15 +2667,15 @@ TextEditor::LanguageDefinition::CPlusPlus() {
         "tolower", "toupper",       "std",     "string",        "vector",
         "map",     "unordered_map", "set",     "unordered_set", "min",
         "max"};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
     }
 
-    langDef.mTokenize = [](const char* in_begin, const char* in_end,
-                           const char*& out_begin, const char*& out_end,
-                           PaletteIndex& paletteIndex) -> bool {
+    langDef.mTokenize = [](const char *in_begin, const char *in_end,
+                           const char *&out_begin, const char *&out_end,
+                           PaletteIndex &paletteIndex) -> bool {
       paletteIndex = PaletteIndex::Max;
 
       while (in_begin < in_end && isascii(*in_begin) && isblank(*in_begin))
@@ -2650,11 +2714,11 @@ TextEditor::LanguageDefinition::CPlusPlus() {
   return langDef;
 }
 
-const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::HLSL() {
+const TextEditor::LanguageDefinition &TextEditor::LanguageDefinition::HLSL() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const keywords[] = {
+    static const char *const keywords[] = {
         "AppendStructuredBuffer",
         "asm",
         "asm_fragment",
@@ -2843,9 +2907,9 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::HLSL() {
         "half3x4",
         "half4x4",
     };
-    for (auto& k : keywords) langDef.mKeywords.insert(k);
+    for (auto &k : keywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {
+    static const char *const identifiers[] = {
         "abort",
         "abs",
         "acos",
@@ -2987,7 +3051,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::HLSL() {
         "texCUBEproj",
         "transpose",
         "trunc"};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
@@ -3038,11 +3102,11 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::HLSL() {
   return langDef;
 }
 
-const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::GLSL() {
+const TextEditor::LanguageDefinition &TextEditor::LanguageDefinition::GLSL() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const keywords[] = {
+    static const char *const keywords[] = {
         "auto",       "break",     "case",           "char",
         "const",      "continue",  "default",        "do",
         "double",     "else",      "enum",           "extern",
@@ -3054,9 +3118,9 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::GLSL() {
         "volatile",   "while",     "_Alignas",       "_Alignof",
         "_Atomic",    "_Bool",     "_Complex",       "_Generic",
         "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local"};
-    for (auto& k : keywords) langDef.mKeywords.insert(k);
+    for (auto &k : keywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {
+    static const char *const identifiers[] = {
         "abort",   "abs",     "acos",    "asin",     "atan",    "atexit",
         "atof",    "atoi",    "atol",    "ceil",     "clock",   "cosh",
         "ctime",   "div",     "exit",    "fabs",     "floor",   "fmod",
@@ -3066,7 +3130,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::GLSL() {
         "puts",    "rand",    "remove",  "rename",   "sinh",    "sqrt",
         "srand",   "strcat",  "strcmp",  "strerror", "time",    "tolower",
         "toupper"};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
@@ -3117,11 +3181,11 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::GLSL() {
   return langDef;
 }
 
-const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::C() {
+const TextEditor::LanguageDefinition &TextEditor::LanguageDefinition::C() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const keywords[] = {
+    static const char *const keywords[] = {
         "auto",       "break",     "case",           "char",
         "const",      "continue",  "default",        "do",
         "double",     "else",      "enum",           "extern",
@@ -3133,9 +3197,9 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::C() {
         "volatile",   "while",     "_Alignas",       "_Alignof",
         "_Atomic",    "_Bool",     "_Complex",       "_Generic",
         "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local"};
-    for (auto& k : keywords) langDef.mKeywords.insert(k);
+    for (auto &k : keywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {
+    static const char *const identifiers[] = {
         "abort",   "abs",     "acos",    "asin",     "atan",    "atexit",
         "atof",    "atoi",    "atol",    "ceil",     "clock",   "cosh",
         "ctime",   "div",     "exit",    "fabs",     "floor",   "fmod",
@@ -3145,15 +3209,15 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::C() {
         "puts",    "rand",    "remove",  "rename",   "sinh",    "sqrt",
         "srand",   "strcat",  "strcmp",  "strerror", "time",    "tolower",
         "toupper"};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
     }
 
-    langDef.mTokenize = [](const char* in_begin, const char* in_end,
-                           const char*& out_begin, const char*& out_end,
-                           PaletteIndex& paletteIndex) -> bool {
+    langDef.mTokenize = [](const char *in_begin, const char *in_end,
+                           const char *&out_begin, const char *&out_end,
+                           PaletteIndex &paletteIndex) -> bool {
       paletteIndex = PaletteIndex::Max;
 
       while (in_begin < in_end && isascii(*in_begin) && isblank(*in_begin))
@@ -3192,11 +3256,11 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::C() {
   return langDef;
 }
 
-const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::SQL() {
+const TextEditor::LanguageDefinition &TextEditor::LanguageDefinition::SQL() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const keywords[] = {"ADD",
+    static const char *const keywords[] = {"ADD",
                                            "EXCEPT",
                                            "PERCENT",
                                            "ALL",
@@ -3371,9 +3435,9 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::SQL() {
                                            "OVER",
                                            "WRITETEXT"};
 
-    for (auto& k : keywords) langDef.mKeywords.insert(k);
+    for (auto &k : keywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {"ABS",
+    static const char *const identifiers[] = {"ABS",
                                               "ACOS",
                                               "ADD_MONTHS",
                                               "ASCII",
@@ -3509,7 +3573,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::SQL() {
                                               "VAR_SAMP",
                                               "VARIANCE",
                                               "VSIZE "};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
@@ -3557,12 +3621,12 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::SQL() {
   return langDef;
 }
 
-const TextEditor::LanguageDefinition&
+const TextEditor::LanguageDefinition &
 TextEditor::LanguageDefinition::AngelScript() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const keywords[] = {
+    static const char *const keywords[] = {
         "and",       "abstract", "auto",      "bool",      "break",
         "case",      "cast",     "class",     "const",     "continue",
         "default",   "do",       "double",    "else",      "enum",
@@ -3576,9 +3640,9 @@ TextEditor::LanguageDefinition::AngelScript() {
         "typedef",   "uint",     "uint8",     "uint16",    "uint32",
         "uint64",    "void",     "while",     "xor"};
 
-    for (auto& k : keywords) langDef.mKeywords.insert(k);
+    for (auto &k : keywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {
+    static const char *const identifiers[] = {
         "cos",         "sin",         "tab",      "acos",        "asin",
         "atan",        "atan2",       "cosh",     "sinh",        "tanh",
         "log",         "log10",       "pow",      "sqrt",        "abs",
@@ -3586,7 +3650,7 @@ TextEditor::LanguageDefinition::AngelScript() {
         "fpToIEEE",    "complex",     "opEquals", "opAddAssign", "opSubAssign",
         "opMulAssign", "opDivAssign", "opAdd",    "opSub",       "opMul",
         "opDiv"};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
@@ -3634,18 +3698,18 @@ TextEditor::LanguageDefinition::AngelScript() {
   return langDef;
 }
 
-const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::Lua() {
+const TextEditor::LanguageDefinition &TextEditor::LanguageDefinition::Lua() {
   static bool inited = false;
   static LanguageDefinition langDef;
   if (!inited) {
-    static const char* const keywords[] = {
+    static const char *const keywords[] = {
         "and", "break",    "do",     "",     "else", "elseif", "end",  "false",
         "for", "function", "if",     "in",   "",     "local",  "nil",  "not",
         "or",  "repeat",   "return", "then", "true", "until",  "while"};
 
-    for (auto& k : keywords) langDef.mKeywords.insert(k);
+    for (auto &k : keywords) langDef.mKeywords.insert(k);
 
-    static const char* const identifiers[] = {"assert",       "collectgarbage",
+    static const char *const identifiers[] = {"assert",       "collectgarbage",
                                               "dofile",       "error",
                                               "getmetatable", "ipairs",
                                               "loadfile",     "load",
@@ -3734,7 +3798,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::Lua() {
                                               "string",       "utf8",
                                               "bit32",        "math",
                                               "debug",        "package"};
-    for (auto& k : identifiers) {
+    for (auto &k : identifiers) {
       Identifier id;
       id.mDeclaration = "Built-in function";
       langDef.mIdentifiers.insert(std::make_pair(std::string(k), id));
