@@ -74,11 +74,15 @@ jobs:
         cd build
         ctest --output-on-failure
 
+    - name: 🧪 Generate coverage report
+      run: |
+        gcovr -r . build --cobertura -o coverage_report.xml
+
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        gcov: true
+        file: coverage_report.xml
 
   langs:
     name: 🧪 Langs
