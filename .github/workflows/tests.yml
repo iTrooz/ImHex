@@ -76,6 +76,7 @@ jobs:
 
     - name: 🧪 Generate coverage report
       run: |
+        apt install -y gcovr
         gcovr -r . build --cobertura -o coverage_report.xml
 
     - name: Upload coverage reports to Codecov
