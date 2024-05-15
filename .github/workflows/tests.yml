@@ -74,6 +74,9 @@ jobs:
         cd build
         ctest --output-on-failure
 
+    - uses: mxschmitt/action-tmate@master
+      name: Setup tmate session
+
     - name: 🧪 Generate coverage report
       run: |
         sudo apt install -y gcovr
