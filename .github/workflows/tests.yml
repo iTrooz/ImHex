@@ -78,6 +78,8 @@ jobs:
       run: |
         sudo apt install -y gcovr
         gcovr -r . build --xml coverage_report.xml
+        file coverage_report.xml
+        cat coverage_report.xml
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
