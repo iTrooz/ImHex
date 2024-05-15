@@ -80,7 +80,7 @@ jobs:
     - name: 🧪 Generate coverage report
       run: |
         sudo apt install -y gcovr
-        gcovr -r . build --cobertura -o coverage_report.xml
+        gcovr -r . build --xml coverage_report.xml
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
