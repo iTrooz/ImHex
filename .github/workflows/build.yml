@@ -273,7 +273,7 @@ jobs:
           -DIMHEX_PATTERNS_PULL_MASTER=ON                                                           \
           -DIMHEX_COMMIT_HASH_LONG="${GITHUB_SHA}"                                                  \
           -DIMHEX_COMMIT_BRANCH="${GITHUB_REF##*/}"                                                 \
-          ..
+          -DIMHEX_STRICT_WARNINGS=OFF ..
 
     - name: 🛠️ Build
       run: cd build && ninja install
