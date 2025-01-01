@@ -225,8 +225,9 @@ jobs:
       if: ${{ matrix.custom_glfw }}
       uses: actions/checkout@v4
       with:
-        repository: glfw/glfw
+        repository: HinTak/glfw
         path: glfw
+        ref: apple-software-renderer-retry
 
     # GLFW custom build (to allow software rendering)
     - name: ⬇️ Patch and install custom glfw
@@ -234,7 +235,7 @@ jobs:
       run: |
         set -x
         cd glfw
-        git apply ../dist/macOS/0001-glfw-SW.patch
+        # git apply ../dist/macOS/0001-glfw-SW.patch
 
         mkdir build
         cd build
