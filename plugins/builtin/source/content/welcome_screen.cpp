@@ -372,6 +372,8 @@ namespace hex::plugin::builtin {
         }
 
         void drawWelcomeScreen() {
+            log::info("{}", std::string(reinterpret_cast<const char*>(glGetString(GL_RENDERER))));
+
             ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
             ImGui::PushStyleColor(ImGuiCol_WindowShadow, 0x00);
             if (ImGui::Begin("ImHexDockSpace", nullptr, ImGuiWindowFlags_NoBringToFrontOnFocus)) {
