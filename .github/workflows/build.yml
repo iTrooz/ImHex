@@ -807,7 +807,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX="/usr"                 \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache            \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache          \
-          -DUSE_SYSTEM_FMT=ON                           \
+          -DUSE_SYSTEM_FMT=OFF                           \
           -DUSE_SYSTEM_YARA=ON                          \
           -DUSE_SYSTEM_NLOHMANN_JSON=ON                 \
           -DUSE_SYSTEM_CAPSTONE=OFF                     \
@@ -816,6 +816,7 @@ jobs:
           -DIMHEX_COMMIT_BRANCH="${GITHUB_REF##*/}"     \
           -DIMHEX_ENABLE_LTO=ON                         \
           -DIMHEX_USE_GTK_FILE_PICKER=ON                \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
           ..
 
       - name: 🛠️ Build
