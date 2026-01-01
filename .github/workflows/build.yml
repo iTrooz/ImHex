@@ -725,6 +725,7 @@ jobs:
         shell: bash
         run: |
           set -x
+          echo "A=$CCACHE_DIR"
           git config --global --add safe.directory '*'
           mkdir -p build
           cd build
