@@ -236,6 +236,10 @@ jobs:
         with:
           arch: ${{ matrix.vs_arch }}
 
+      - name: ⬇️ Install CMake and Ninja
+        shell: cmd
+        run: choco install cmake ninja
+
       - name: 📜 Setup ccache
         uses:  hendrikmuhs/ccache-action@main
         id:    cache-ccache
@@ -244,17 +248,10 @@ jobs:
           restore-keys: ${{ runner.os }}-msvc-${{ matrix.vs_arch }}-ccache
           max-size: 1G
 
-      - name: 📦 Install vcpkg
-        uses: friendlyanon/setup-vcpkg@v1
-        with: { committish: ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0 }
-
-      - name: ⬇️ Install dependencies
+      - name: ⬇️ Install vcpkg dependencies
         run: |
           cp dist/vcpkg.json vcpkg.json
           vcpkg install
-
-      - name: ⬇️ Install CMake and Ninja
-        uses: lukka/get-cmake@latest
 
       - name: ⬇️ Install .NET
         uses: actions/setup-dotnet@v4
