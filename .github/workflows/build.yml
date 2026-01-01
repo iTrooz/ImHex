@@ -725,7 +725,7 @@ jobs:
         shell: bash
         run: |
           set -x
-          echo "A=$CCACHE_DIR"
+          export CCACHE_LOGFILE=/dev/stdout
           git config --global --add safe.directory '*'
           mkdir -p build
           cd build
@@ -743,7 +743,7 @@ jobs:
             ..
 
       - name: 🛠️ Build
-        run: cd build && DESTDIR=DebDir ninja install
+        run: cd build && CCACHE_LOGFILE=/dev/stdout DESTDIR=DebDir ninja install
 
       - name: 📜 Set version variable
         run: |
@@ -1049,6 +1049,7 @@ jobs:
       # Fedora cmake build (in imhex.spec)
       - name: 📦 Build RPM
         run: |
+          export CCACHE_LOGFILE=/dev/stdout
           mock -r ${{ matrix.mock_config }}-x86_64               \
             --define 'debug_package %{nil}'                      \
             --enable-network -N -v                               \
