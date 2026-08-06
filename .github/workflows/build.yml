@@ -565,7 +565,7 @@ jobs:
       id: build
       run: |
         echo "IMHEX_VERSION=`cat VERSION`" >> $GITHUB_OUTPUT
-        docker buildx build . -f dist/macOS/arm64.Dockerfile --progress=plain --build-arg 'JOBS=4' --build-arg "BUILD_TYPE=$(BUILD_TYPE)" --build-context imhex=$(pwd) --output out
+        docker buildx build . -f dist/macOS/arm64.Dockerfile --progress=plain --build-arg 'JOBS=4' --build-arg "BUILD_TYPE=$(BUILD_TYPE)" --build-arg "CUSTOM_GLFW=true" --build-context imhex=$(pwd) --output out
         cp resources/dist/macos/Entitlements.plist out/Entitlements.plist
 
     - name: ⬆️ Upload artifacts
