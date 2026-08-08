@@ -98,6 +98,10 @@ jobs:
       - name: 🛠️ Configure CMake
         run: |
           mkdir -p build
+
+          # Echo the VCPKG_ROOT env var
+          Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT"
+          Write-Host "VCPKG_DEFAULT_BINARY_CACHE: $env:VCPKG_DEFAULT_BINARY_CACHE"
                     
           cmake -G "Ninja" -B build                                                   `
             --preset vs2022                                                           `
