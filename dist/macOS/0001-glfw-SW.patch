@@ -1,25 +1,93 @@
-From 9c8665af4c2e2ce66555c15c05c72027bfdf0cb6 Mon Sep 17 00:00:00 2001
-From: iTrooz <hey@itrooz.fr>
-Date: Mon, 29 Aug 2022 17:29:38 +0200
-Subject: [PATCH] Use software rendering on MacOS
+From f90852400f7ea6d13a9c20bdfced538795bcbc78 Mon Sep 17 00:00:00 2001
+From: Hin-Tak Leung <htl10@users.sourceforge.net>
+Date: Tue, 4 Jun 2024 02:30:00 +0100
+Subject: [PATCH] Re-try with Software Renderer on Mac OS if
+ NSOpenGLPFAAccelerated fails.
 
+I found that I needed to do a special DELETE_TERMINATING_NULL, because
+SET_ATTRIB(x, 0) are present elsewhere, and DELETE_ATTRIB(0) is not
+the reverse of ADD_ATTRIB(0).
+
+The DELETE_ATTRIB macro is not robust enough - there should be an
+UNSET_ATTRIB(a,v).
+
+fixes #2570
+fixes #2080
 ---
- src/nsgl_context.m | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ src/nsgl_context.m | 49 +++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 42 insertions(+), 7 deletions(-)
 
 diff --git a/src/nsgl_context.m b/src/nsgl_context.m
-index fc1f7521..e5906575 100644
+index df72980005..c8454e1ce6 100644
 --- a/src/nsgl_context.m
 +++ b/src/nsgl_context.m
-@@ -198,7 +198,7 @@ GLFWbool _glfwCreateContextNSGL(_GLFWwindow* window,
+@@ -200,6 +200,29 @@ GLFWbool _glfwCreateContextNSGL(_GLFWwindow* window,
+     assert((size_t) index < sizeof(attribs) / sizeof(attribs[0])); \
+     attribs[index++] = a; \
+ }
++// DELETE_ATTRIB checks a !=0, as SET_ATTRIB(x,0) are used, and needs
++// a special UNSET_ATTRIB(x,0), instead of "DELETE_ATTRIB(x); DELETE_ATTRIB(0)"
++#define DELETE_ATTRIB(a) \
++{ \
++    assert(a != 0); \
++    assert(index > 0); \
++    int i = 0; \
++    while (attribs[i] != a && i < index) i++; \
++    if (i < index) { \
++        index--; \
++        while(i < index) { \
++            attribs[i] = attribs[i+1]; \
++            i++; \
++        } \
++    } \
++}
++#define DELETE_TERMINATING_NULL \
++{ \
++    assert(index > 0); \
++    if (attribs[index-1] == 0) { \
++        index--; \
++    } \
++}
+ #define SET_ATTRIB(a, v) { ADD_ATTRIB(a); ADD_ATTRIB(v); }
+ 
      NSOpenGLPixelFormatAttribute attribs[40];
-     int index = 0;
+@@ -302,20 +325,32 @@ GLFWbool _glfwCreateContextNSGL(_GLFWwindow* window,
+     // NOTE: All NSOpenGLPixelFormats on the relevant cards support sRGB
+     //       framebuffer, so there's no need (and no way) to request it
  
--    ADD_ATTRIB(NSOpenGLPFAAccelerated);
-+    ADD_ATTRIB(NSOpenGLPFARendererID);ADD_ATTRIB(kCGLRendererGenericFloatID);
-     ADD_ATTRIB(NSOpenGLPFAClosestPolicy);
+-    ADD_ATTRIB(0);
+-
+-#undef ADD_ATTRIB
+-#undef SET_ATTRIB
++    ADD_ATTRIB(0); // See also DELETE_TERMINATING_NULL!
  
-     if (ctxconfig->nsgl.offline)
--- 
-2.37.2
-
+     window->context.nsgl.pixelFormat =
+         [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];
+     if (window->context.nsgl.pixelFormat == nil)
+     {
+-        _glfwInputError(GLFW_FORMAT_UNAVAILABLE,
+-                        "NSGL: Failed to find a suitable pixel format");
+-        return GLFW_FALSE;
++        // Re-try with Software Renderer
++        DELETE_ATTRIB(NSOpenGLPFAAccelerated);
++        DELETE_TERMINATING_NULL; // Unterminate.
++        SET_ATTRIB(NSOpenGLPFARendererID, kCGLRendererGenericFloatID);
++        ADD_ATTRIB(0); // Re-terminate.
++        window->context.nsgl.pixelFormat =
++            [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];
++        if (window->context.nsgl.pixelFormat == nil)
++        {
++            _glfwInputError(GLFW_FORMAT_UNAVAILABLE,
++                            "NSGL: Failed to find a suitable pixel format");
++            return GLFW_FALSE;
++        }
+     }
+ 
++#undef ADD_ATTRIB
++#undef DELETE_ATTRIB
++#undef DELETE_TERMINATING_NULL
++#undef SET_ATTRIB
++
+     NSOpenGLContext* share = nil;
+ 
+     if (ctxconfig->share)
