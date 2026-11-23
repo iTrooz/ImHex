@@ -879,7 +879,7 @@ jobs:
     steps:
       - name: ⬇️ Install setup dependencies
         run: |
-          sudo apt update && sudo apt install -y git curl snapd ccache
+          sudo apt update && sudo apt install -y git curl snapd ccache squashfs-tools
 
       - name: 🧰 Checkout
         uses: actions/checkout@v7
@@ -916,6 +916,16 @@ jobs:
       - name: 🟩 Rename Snap
         run: |
           mv *.snap imhex-${{ env.IMHEX_VERSION }}-${{ matrix.architecture }}.snap
+
+      - name: 📦 Repack Snap with larger blocks
+        run: |
+          snap="imhex-${{ env.IMHEX_VERSION }}-${{ matrix.architecture }}.snap"
+          workdir=$(mktemp -d)
+          trap 'rm -rf "$workdir"' EXIT
+          unsquashfs -d "$workdir/root" "$snap"
+          mksquashfs "$workdir/root" "$workdir/repacked.snap" \
+            -noappend -comp xz -b 1048576 -no-fragments -no-xattrs -all-root -processors 2
+          mv "$workdir/repacked.snap" "$snap"
 
       - name: 🗝️ Generate build provenance attestations
         uses: actions/attest-build-provenance@v4
