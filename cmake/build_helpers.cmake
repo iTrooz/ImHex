@@ -872,6 +872,15 @@ macro(setUninstallTarget)
     endif()
 endmacro()
 
+# Add a bundled romfs instance and make its public header usable with newer libc++.
+macro(addImHexRomfs source_dir binary_dir)
+    add_subdirectory("${source_dir}" "${binary_dir}" ${ARGN})
+
+    if (MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(${LIBROMFS_LIBRARY} PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include type_traits>")
+    endif()
+endmacro()
+
 macro(addBundledLibraries)
     # Make sure the build is using vcpkg on Windows and Emscripten, otherwise none of these dependencies will be found
     if (MSVC OR EMSCRIPTEN)

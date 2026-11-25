@@ -97,7 +97,7 @@ macro(add_imhex_plugin)
         # Setup a romfs for the plugin
         list(APPEND LIBROMFS_RESOURCE_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/romfs)
         set(LIBROMFS_PROJECT_NAME ${IMHEX_PLUGIN_NAME})
-        add_subdirectory(${IMHEX_BASE_FOLDER}/lib/external/libromfs ${CMAKE_CURRENT_BINARY_DIR}/libromfs)
+        addImHexRomfs(${IMHEX_BASE_FOLDER}/lib/external/libromfs ${CMAKE_CURRENT_BINARY_DIR}/libromfs)
         target_link_libraries(${IMHEX_PLUGIN_NAME} PRIVATE ${LIBROMFS_LIBRARY})
 
         set(FEATURE_DEFINE_CONTENT)
