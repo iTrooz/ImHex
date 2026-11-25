@@ -888,6 +888,11 @@ macro(addBundledLibraries)
 
     add_subdirectory(${EXTERNAL_LIBS_FOLDER}/libwolv EXCLUDE_FROM_ALL)
 
+    # libwolv's math evaluator relies on a transitive <cstdlib> include that libc++ no longer provides.
+    if (MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(libwolv-math_eval PRIVATE -include cstdlib)
+    endif()
+
     set(XDGPP_INCLUDE_DIRS "${THIRD_PARTY_LIBS_FOLDER}/xdgpp")
     set(FPHSA_NAME_MISMATCHED ON CACHE BOOL "")
 
